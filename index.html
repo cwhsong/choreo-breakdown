@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Choreo Looper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEF0F2; --panel:#FFFFFF; --ink:#17212B; --muted:#5B6773; --line:#D5DAE0;
+  --tape:#F4C430; --tape-ink:#17212B; --loop:#2E6BD8; --head:#E0463C; --soft:#E3E7EB;
+  --display:"Big Shoulders Display", "Arial Narrow", "Roboto Condensed", Impact, sans-serif;
+  --body:"Instrument Sans", "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15191E; --panel:#1E242B; --ink:#E9EDF1; --muted:#9AA6B2; --line:#2F3740;
+    --tape:#F4C430; --tape-ink:#15191E; --loop:#6E9BF0; --head:#FF6B5E; --soft:#262D35;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15191E; --panel:#1E242B; --ink:#E9EDF1; --muted:#9AA6B2; --line:#2F3740;
+  --tape:#F4C430; --tape-ink:#15191E; --loop:#6E9BF0; --head:#FF6B5E; --soft:#262D35;
+}
+*,*::before,*::after{box-sizing:inherit}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--loop);outline-offset:2px}
+
+.wrap{max-width:1320px;margin:0 auto;padding:20px clamp(12px,3vw,32px) 48px;display:grid;grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);gap:28px;align-items:start}
+@media (max-width:900px){.wrap{grid-template-columns:1fr;gap:18px}}
+
+header.title{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
+header.title h1{font:900 clamp(34px,5.4vw,64px)/.9 var(--display);letter-spacing:-.01em;margin:0;text-transform:uppercase;overflow-wrap:anywhere}
+header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
+.modes{display:flex;gap:8px;flex-wrap:wrap}
+.mode{border:2px solid var(--ink);background:transparent;padding:9px 16px;border-radius:999px;font-weight:600;cursor:pointer}
+.mode[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+
+.player{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-top:6px}
+@media (max-width:900px){.player{position:static}}
+.stage{position:relative;aspect-ratio:16/9;background:#0E1114;border-radius:6px;overflow:hidden}
+.stage video{width:100%;height:100%;object-fit:contain;display:block;transition:transform .25s}
+.stage.mirror video{transform:scaleX(-1)}
+@media (prefers-reduced-motion:reduce){.stage video{transition:none}}
+.hud{position:absolute;left:12px;bottom:10px;display:flex;align-items:flex-end;gap:10px;pointer-events:none}
+.count{font:900 clamp(56px,9vw,112px)/.8 var(--display);color:var(--tape);text-shadow:0 2px 0 rgba(0,0,0,.45)}
+.count .and{font-size:.55em;margin-left:2px}
+.hudmeta{color:#fff;font:600 13px/1.25 var(--body);text-shadow:0 1px 2px rgba(0,0,0,.8);padding-bottom:6px}
+.badge{position:absolute;right:10px;top:10px;display:flex;gap:6px}
+.badge span{background:rgba(0,0,0,.55);color:#fff;font:600 12px/1 var(--body);padding:6px 8px;border-radius:4px}
+
+.drop{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;padding:20px;color:#DDE3E9;border:2px dashed #46505A;border-radius:6px}
+.drop.over{border-color:var(--tape);background:rgba(244,196,48,.08)}
+.drop strong{font:800 clamp(22px,3vw,30px)/1 var(--display);text-transform:uppercase;color:#fff}
+.drop p{margin:0;max-width:46ch;font-size:14px;color:#AEB8C2}
+.pick{background:var(--tape);color:var(--tape-ink);border:0;border-radius:999px;padding:10px 18px;font-weight:600;cursor:pointer}
+.drop .err{color:#FF9B91}
+
+.timeline{position:relative;height:46px;margin-top:10px;cursor:pointer;touch-action:none;user-select:none}
+.seg{position:absolute;top:8px;height:26px;border-radius:3px;background:var(--soft);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font:800 14px/1 var(--display);color:var(--muted);overflow:hidden}
+.seg.cur{background:var(--tape);border-color:var(--tape);color:var(--tape-ink)}
+.tick{position:absolute;top:30px;width:1px;height:6px;background:var(--line)}
+.loopband{position:absolute;top:2px;height:38px;border:2px solid var(--loop);border-radius:5px;pointer-events:none;display:none}
+.loopband.on{display:block}
+.head{position:absolute;top:0;width:3px;height:42px;background:var(--head);border-radius:2px;margin-left:-1px;pointer-events:none}
+.times{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;margin-top:-2px}
+
+.transport,.timing{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:8px 11px;cursor:pointer;min-height:40px;display:inline-flex;align-items:center;gap:6px;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.play{min-width:84px;justify-content:center;font-weight:600;background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn:disabled{opacity:.4;cursor:default}
+.group{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.group .btn{border:0;border-radius:0;border-right:1px solid var(--line)}
+.group .btn:last-child{border-right:0}
+.spacer{flex:1}
+.speed{display:inline-flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 10px;min-height:40px}
+.speed input{width:clamp(110px,16vw,170px);accent-color:var(--ink)}
+.speed output{font:800 18px/1 var(--display);min-width:3.2ch;text-align:right}
+
+.timing{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-top:10px}
+.timing .lab{font-size:12px;font-weight:600;color:var(--muted)}
+.field{display:inline-flex;align-items:center;gap:6px}
+.field input{width:5.2em;border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:7px 8px;min-height:40px;font-weight:600}
+.t0val{font:800 20px/1 var(--display);min-width:4.2ch}
+.timing .sep{width:1px;align-self:stretch;background:var(--line);margin:0 4px}
+.tmsg{flex-basis:100%;color:var(--muted);font-size:12.5px;margin:2px 0 0}
+.keys{color:var(--muted);font-size:12px;margin-top:8px}
+.keys kbd{font:600 11px/1 var(--body);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:2px 5px;background:var(--panel)}
+@media (max-width:900px){.keys{display:none}}
+
+.notes h2{font:800 26px/1 var(--display);text-transform:uppercase;margin:4px 0 6px}
+.notes .lede{color:var(--muted);margin:0 0 16px;max-width:62ch}
+.sec{background:var(--panel);border:1px solid var(--line);border-radius:8px;margin-bottom:12px;overflow:hidden}
+.sec.cur{border-color:var(--tape);box-shadow:inset 4px 0 0 var(--tape)}
+.sechead{display:flex;align-items:center;gap:12px;padding:12px 14px 8px;cursor:pointer;background:none;border:0;width:100%;text-align:left}
+.num{font:900 40px/.85 var(--display);min-width:1.1em;background:none;border:0;padding:0;cursor:pointer;text-align:left}
+.sechead h3{margin:0;font:800 20px/1.05 var(--display);text-transform:uppercase}
+.sechead small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.hwrap{flex:1;min-width:0}
+.secname{width:100%;border:0;border-bottom:1px dashed var(--line);background:transparent;font:800 20px/1.2 var(--display);text-transform:uppercase;padding:2px 0}
+.secname::placeholder{color:var(--muted);opacity:.7}
+.weight{margin:0 14px 8px;padding:8px 10px;background:var(--soft);border-radius:6px;font-size:13.5px}
+.weight b{font-weight:600}
+.rows{list-style:none;margin:0;padding:0 6px 8px}
+.row{display:grid;grid-template-columns:38px 1fr;gap:8px;width:100%;text-align:left;background:none;border:0;border-radius:5px;padding:6px 8px;cursor:pointer;align-items:center}
+.row:hover{background:var(--soft)}
+.row.cur{background:var(--tape);color:var(--tape-ink)}
+.row.cur .lbl{color:var(--tape-ink)}
+.row .c{font:800 20px/1.1 var(--display);background:none;border:0;padding:0;text-align:left;cursor:pointer;color:inherit}
+.row .d{font-size:14px;line-height:1.4}
+.row input.d{width:100%;border:0;border-bottom:1px solid transparent;background:transparent;padding:4px 0}
+.row input.d:focus{border-bottom-color:var(--muted);outline:none}
+.row input.d::placeholder{color:var(--muted);opacity:.6}
+.row.cur input.d::placeholder{color:var(--tape-ink)}
+.lbl{font-size:11.5px;font-weight:600;color:var(--muted);margin-right:4px}
+.secfoot{display:flex;gap:8px;padding:0 14px 12px;flex-wrap:wrap}
+.secfoot .btn{min-height:34px;padding:6px 10px;font-size:13px}
+.fine{color:var(--muted);font-size:12.5px;margin-top:14px;max-width:62ch}
+.empty{color:var(--muted);border:1px dashed var(--line);border-radius:8px;padding:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="title">
+    <div>
+      <h1 id="h1">Choreo looper</h1>
+      <p id="sub">Load any choreography video, set the tempo and where count 1 lands, then learn it 8-count by 8-count.</p>
+    </div>
+    <div class="modes" role="group" aria-label="Practice mode">
+      <button class="mode" id="modeBreak" aria-pressed="true">Breakdown · ½ speed</button>
+      <button class="mode" id="modeFull" aria-pressed="false">Full-speed run</button>
+    </div>
+  </header>
+
+  <section class="player" aria-label="Video player">
+    <div class="stage mirror" id="stage">
+      <video id="vid" playsinline preload="auto"></video>
+      <div class="drop" id="drop">
+        <strong>Load a choreo video</strong>
+        <p>Choose a dance video from your device, or drop it here. It stays on your device, and this browser remembers the last one along with its tempo, count 1 and notes.</p>
+        <button class="pick" id="pickBtn">Choose video</button>
+        <p class="err" id="err" hidden></p>
+      </div>
+      <div class="hud" id="hud" hidden>
+        <div class="count" id="count">–</div>
+        <div class="hudmeta" id="hudmeta"></div>
+      </div>
+      <div class="badge" id="badge" hidden><span id="bSpeed">50%</span><span id="bMirror">Mirrored</span></div>
+    </div>
+    <input type="file" id="file" accept="video/*" hidden>
+
+    <div class="timeline" id="timeline" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="30" aria-valuenow="0">
+      <div class="loopband" id="loopband"></div>
+      <div class="head" id="head"></div>
+    </div>
+    <div class="times"><span id="tNow">0:00.0</span><span id="tDur">0:00.0</span></div>
+
+    <div class="transport">
+      <button class="btn" id="prevSec" title="Previous 8-count (↑)" aria-label="Previous 8-count">⏮</button>
+      <button class="btn" id="prevCnt" title="Back one count (←)" aria-label="Back one count">−1</button>
+      <button class="btn play" id="play">Play</button>
+      <button class="btn" id="nextCnt" title="Forward one count (→)" aria-label="Forward one count">+1</button>
+      <button class="btn" id="nextSec" title="Next 8-count (↓)" aria-label="Next 8-count">⏭</button>
+      <label class="speed" title="Speed in 5% steps ([ and ])"><span class="lab">Speed</span>
+        <input type="range" id="speed" min="25" max="150" step="5" value="50" aria-label="Playback speed">
+        <output id="speedOut">50%</output>
+      </label>
+      <div class="group" role="group" aria-label="Speed presets">
+        <button class="btn" data-rate="0.5">½×</button>
+        <button class="btn" data-rate="0.75">¾×</button>
+        <button class="btn" data-rate="1">1×</button>
+      </div>
+      <button class="btn" id="loopBtn" aria-pressed="true" title="Loop this 8-count (L)">Loop 8-count</button>
+      <button class="btn" id="mirrorBtn" aria-pressed="true" title="Mirror (M)">Mirror</button>
+      <button class="btn" id="clickBtn" aria-pressed="false" title="Count clicks (C)">Clicks</button>
+      <span class="spacer"></span>
+      <button class="btn" id="changeBtn" hidden>Change video</button>
+    </div>
+
+    <div class="timing" id="timing" aria-label="Count timing">
+      <label class="field"><span class="lab">Tempo</span><input type="number" id="bpm" min="30" max="300" step="0.1" value="120" inputmode="decimal"><span class="lab">BPM</span></label>
+      <div class="group" role="group" aria-label="Tempo shortcuts">
+        <button class="btn" id="halfBpm" title="Half-time: one count every two beats">½ time</button>
+        <button class="btn" id="dblBpm" title="Double-time">×2</button>
+      </div>
+      <button class="btn" id="tapBtn" title="Tap on each count while the video plays (T)">Tap</button>
+      <button class="btn" id="detectBtn" title="Estimate the tempo from the song">Detect</button>
+      <span class="sep" aria-hidden="true"></span>
+      <span class="field"><span class="lab">Count 1 at</span><span class="t0val" id="t0lbl">0:00.00</span></span>
+      <button class="btn" id="set1" title="Make the current moment count 1 (1)">Set 1 here</button>
+      <div class="group" role="group" aria-label="Nudge count 1">
+        <button class="btn" data-nudge="-beat" title="Move count 1 one beat earlier">−beat</button>
+        <button class="btn" data-nudge="-0.02" title="Earlier by 0.02s (,)">−</button>
+        <button class="btn" data-nudge="0.02" title="Later by 0.02s (.)">+</button>
+        <button class="btn" data-nudge="beat" title="Move count 1 one beat later">+beat</button>
+      </div>
+      <p class="tmsg" id="tmsg">Set the tempo, then pause on the move that starts the routine and press “Set 1 here”.</p>
+    </div>
+    <div class="keys"><kbd>Space</kbd> play · <kbd>←</kbd><kbd>→</kbd> one count (<kbd>Shift</kbd> for the &amp;) · <kbd>↑</kbd><kbd>↓</kbd> 8-counts · <kbd>[</kbd><kbd>]</kbd> speed ±5% · <kbd>L</kbd> loop · <kbd>M</kbd> mirror · <kbd>C</kbd> clicks · <kbd>T</kbd> tap · <kbd>1</kbd> set 1 · <kbd>,</kbd><kbd>.</kbd> nudge</div>
+  </section>
+
+  <section class="notes" aria-label="Breakdown">
+    <h2>The breakdown</h2>
+    <p class="lede" id="lede">Load a video to get its 8-counts.</p>
+    <div id="secs"></div>
+    <p class="fine" id="fine"></p>
+  </section>
+</div>
+
+<script>
+(function(){
+  // ---------- preset for the original class video
+  const DATA = [
+    {name:"Open wide & turn to the back",
+     weight:"Sit low from count 1. The turn is a pivot on the balls of both feet, so keep your weight centered and knees soft instead of stepping around.",
+     rows:[["1","Step out into a wide, low stance.","Both elbows up, hands up by your head."],["2","Pivot to face the back.","Arms drop down by your sides."],["3","Facing the back, knees bent, sink lower.","Left arm folds in at the chest, head drops."],["4","Let the weight rock side to side.","Hold the folded arm."],["5","Come back around to face the front, stance wide.","Arm sweeps across the body."],["6","Weight settles on both feet.","Right arm shoots straight up; on the & it folds behind your head."],["7","Weight onto the left leg, right foot flicks back; & kick it up behind you.","Torso leans forward, arms relax."],["8","Land on the right foot.","Both hands up by your face; & one hand points up."]]},
+    {name:"Arm stack, kick & cap",
+     weight:"Count 1 is a small hop that lands on both feet. From 4 on, the weight goes to the left leg so the right leg is free to kick.",
+     rows:[["1","Small hop, land with feet close together.","Forearms stacked flat in front of your chest."],["2","Step out.","Pull the arms apart."],["3","Settle into a wide stance, knees bent.","Arms hang low."],["4","Shift toward your left diagonal, left heel out.","Right arm swings across."],["5","Angle your body to the right, knee lifts.","Hand touches the cap brim."],["6","Right leg kicks out to the side, lean away from it.","On the &, left arm reaches up."],["7","Right foot lifts behind you.","Hand back to the cap."],["8","Put the foot down into a wide stance.","Arms drop low."]]},
+    {name:"Walk up & arm swings",
+     weight:"Bounce down into each step as you walk forward on 1–2. The weight is fully on each foot before the next one moves.",
+     rows:[["1","Walk forward, wide and bouncy.","Elbows bent at your sides."],["2","Keep walking.","Hands push in toward the chest."],["3","Stand tall.","Left arm up, bent at the elbow, right arm down; & swing both across, right forearm crossing your face."],["4","Stay tall.","Right arm up behind your head; drop it on the &."],["5","Wide squat, bounce.","Arms loose and low."],["6","Step the feet in; & rock.","Arms cross."],["7","Stand up.","One hand overhead; & both arms cross over the chest."],["8","Feet come under your hips.","Arms drop to your sides."]]},
+    {name:"Knee lifts",
+     weight:"Every knee lift is a balance moment. Commit all your weight to the standing leg before the other knee comes up, and look down at count 1.",
+     rows:[["1","Right leg lifts behind you.","Left arm up and bent, head looking down."],["2","Land.","Left arm extends up and out; & bring the hand to your face."],["3","Right knee lifts; & set it down.","Hands near your face."],["4","Left knee lifts; & step down forward.","Arms crossed low."],["5","Wide stance, groove in place.","Arms loose; & right arm points out."],["6","Step across; & step again.","Arms relaxed."],["7","Lean right in a wide stance; & sink.","Arms cross."],["8","Straighten up.","Arms up and bent at the chest; & reset."]]},
+    {name:"Small groove into the hop",
+     weight:"Counts 1–2 are deliberately small: feet close, just chest and knee bounces. Save the energy for the lean on 6& and the hop on 8.",
+     rows:[["1","Feet close, small bounce.","Hands near the chest."],["2","Keep the bounce small.","Hands stay in."],["3","Hold the stance.","Right arm folds up to your face; & forearm across your face."],["4","Right knee lifts; & the other knee.","Arms up by your head."],["5","Settle, keep the groove.","Arms low and bent."],["6","Hold; on the & lean right and kick the left leg out.","Right arm up."],["7","Sink wide; & step.","Arm swings through."],["8","Hop and cross the feet; & land.","Right arm points out."]]},
+    {name:"Travel left & turn",
+     weight:"This one moves across the floor to your left. Push off the right foot on 1 and stay low through the lunge before you come up on 2.",
+     rows:[["1","Travel to your left, low lean; & deep lunge.","Arms follow the body."],["2","Turn toward your left; & knee lifts.","One arm up."],["3","Face the front, wide stance.","& arms swing across the chest."],["4","Angle to the diagonal, knee lifts across; & step.","Arms close in."],["5","Turn to profile.","Hand to the cap brim, hold through the &."],["6","Hold profile; & turn back toward the front.","Arm across your face."],["7","Open to the front, back foot lifts; & kick it back.","Right arm extends out; & pull both arms in."],["8","Small hop, lean.","& hand to your head."]]},
+    {name:"Big legs",
+     weight:"The biggest shapes in the combo. On 3& and 7& the leg extends with a heel touch while the weight stays on the standing leg, so you can pull it back fast.",
+     rows:[["1","Low lean, right knee lifts; & wide low step.","Arm reaches down across the body."],["2","Stand up, feet together; & step.","Arms down."],["3","Small hop; & left leg extends out wide, heel down.","Both arms up and bent."],["4","Hold the extended leg, lean away from it.","Arms follow the lean."],["5","Wide squat; & step.","Arms loose."],["6","Walk across; & step.","Arms relaxed."],["7","Wide stance; & right leg kicks out wide.","Both arms up and bent; & hand on your head."],["8","Right knee lifts; & step down.","Arm swings through."]]},
+    {name:"Frame the face",
+     weight:"Stay wide and grounded through 1–4. The knee drops in on 2 by rolling onto the inside edge of the right foot, not by shifting your weight.",
+     rows:[["1","Wide stance.","Both hands up framing your face; & hands to the forehead."],["2","Right knee drops in; & again.","Forearms stacked upright in front of your face."],["3","Hold wide.","Forearms stay up."],["4","Right knee lifts; & step down.","Hand near your face."],["5","Wide stance.","Arms loose and low; & hands to the chest."],["6","Step, lean; & step.","Arms relaxed."],["7","Sink wide; & lean left.","Hands clasp in front."],["8","Cross step and turn toward your right.","& hand to the cap."]]},
+    {name:"Ending", weight:"Turn to the side, lean back and look up for two counts, then walk off.",
+     rows:[["1","Turn to face the side.","Arms up near the chest, gaze up."],["2","Lean back, still looking up.","Hold."]]}
+  ];
+  const PRESET = {bpm:143, t0:0.38+3*60/143};
+  const isPreset = f => /love[\s_-]*is[\s_-]*a[\s_-]*drug/i.test(f.name||'') || f.size===17429446;
+
+  // ---------- state
+  const $ = id => document.getElementById(id);
+  const vid=$('vid'), stage=$('stage'), drop=$('drop'), tl=$('timeline'), head=$('head'), band=$('loopband');
+  let st = {bpm:120, t0:0, notes:[]};          // per-video timing + notes
+  let key=null, preset=false, curFile=null, dur=0;
+  let PER=0.5, SEC=4;
+  let loopOn=true, loopI=0, loopJ=0, clickOn=false, curSec=null, curRow=null, lastHalf=null, dragging=false, objURL=null;
+
+  const recalc = () => { PER=60/st.bpm; SEC=8*PER; };
+  const nSec = () => dur ? Math.max(1, Math.ceil((dur-st.t0)/SEC - 0.02)) : 0;
+  const secStart = i => st.t0 + i*SEC;
+  const secEnd = i => Math.min(dur, secStart(i+1));
+  function secIndexAt(t){ if(t<st.t0-1e-6) return -1; return Math.min(nSec()-1, Math.floor((t-st.t0)/SEC+1e-6)); }
+  const fmt = (t,d=1) => { const neg=t<0; t=Math.abs(t); const m=Math.floor(t/60), s=t-m*60; return (neg?'−':'')+m+':'+(s<10?'0':'')+s.toFixed(d); };
+  function countInfo(t){
+    const half = Math.floor((t-st.t0)/PER*2 + 1e-6);
+    if(t < st.t0-1e-6){
+      const b = Math.ceil((st.t0-t)/PER - 1e-6);       // beats until count 1
+      return {intro:true, half, label: b<=4 ? String(9-b) : '–', and:false};
+    }
+    const s=Math.floor(half/16), w=half%16;
+    return {sec:s, count:(w>>1)+1, and:!!(w&1), half, label:String((w>>1)+1)};
+  }
+
+  // ---------- storage
+  function savePrefs(){ try{ localStorage.setItem('clp-prefs', JSON.stringify({mirror:stage.classList.contains('mirror'),rate:vid.playbackRate,loop:loopOn,click:clickOn})); }catch(e){} }
+  function loadPrefs(){ try{ return JSON.parse(localStorage.getItem('clp-prefs')||'null'); }catch(e){ return null; } }
+  let saveT=null;
+  function saveVideo(){ if(!key) return; clearTimeout(saveT); saveT=setTimeout(()=>{ try{ localStorage.setItem('clp:'+key, JSON.stringify(st)); }catch(e){} },250); }
+  function loadVideo(k){ try{ return JSON.parse(localStorage.getItem('clp:'+k)||'null'); }catch(e){ return null; } }
+  function idb(){ return new Promise((res,rej)=>{ try{ const r=indexedDB.open('clp',1); r.onupgradeneeded=()=>r.result.createObjectStore('v'); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);}catch(e){rej(e)} }); }
+  async function cacheVideo(f){ try{ const db=await idb(); db.transaction('v','readwrite').objectStore('v').put({blob:f,name:f.name,size:f.size},'video'); }catch(e){} }
+  async function cachedVideo(){ try{ const db=await idb(); return await new Promise(res=>{ const r=db.transaction('v').objectStore('v').get('video'); r.onsuccess=()=>res(r.result||null); r.onerror=()=>res(null); }); }catch(e){ return null; } }
+
+  // ---------- timeline
+  function buildTimeline(){
+    tl.querySelectorAll('.seg,.tick').forEach(n=>n.remove());
+    if(!dur) return;
+    const pct = t => (t/dur*100)+'%', n=nSec();
+    for(let i=0;i<n;i++){
+      const a=secStart(i), b=secEnd(i); if(b<=a) continue;
+      const d=document.createElement('div'); d.className='seg'; d.dataset.idx=i;
+      d.style.left=pct(a); d.style.width='calc('+pct(b-a)+' - 2px)';
+      d.textContent = (preset && i===8) ? 'End' : (n>20 && i%2 ? '' : String(i+1));
+      tl.insertBefore(d,band);
+    }
+    if(n<=40) for(let h=0; h<n*8; h++){ const t=st.t0+h*PER; if(t>dur) break; const k=document.createElement('div'); k.className='tick'; k.style.left=pct(t); if(h%8===0){k.style.height='10px';k.style.top='28px';} tl.insertBefore(k,band); }
+    curSec=null;
+  }
+
+  // ---------- notes
+  function noteFor(i){ if(!st.notes[i]) st.notes[i]={title:'',c:['','','','','','','','']}; return st.notes[i]; }
+  function buildNotes(){
+    const box=$('secs'); box.innerHTML=''; curRow=null; curSec=null;
+    if(!dur){ box.innerHTML='<p class="empty">No video yet.</p>'; return; }
+    const n=nSec();
+    for(let i=0;i<n;i++){
+      const el=document.createElement('article'); el.className='sec'; el.id='sec'+i; el.dataset.idx=i;
+      const times = fmt(secStart(i))+' – '+fmt(secEnd(i));
+      if(preset && DATA[i]){
+        const s=DATA[i];
+        el.innerHTML = `<button class="sechead" data-loop="${i}"><span class="num">${i<8?i+1:'∎'}</span><span><h3>${s.name}</h3><small>${times} · tap to loop</small></span></button>
+          <p class="weight"><b>Weight:</b> ${s.weight}</p>
+          <ul class="rows">${s.rows.map((r,j)=>`<li><button class="row" data-sec="${i}" data-c="${j}"><span class="c">${r[0]}</span><span class="d"><span class="lbl">Feet</span>${r[1]}<br><span class="lbl">Arms</span>${r[2]}</span></button></li>`).join('')}</ul>`;
+      } else {
+        const nt=noteFor(i);
+        const h=document.createElement('div'); h.className='sechead';
+        const nb=document.createElement('button'); nb.className='num'; nb.dataset.loop=i; nb.title='Loop this 8-count at ½ speed'; nb.textContent=i+1;
+        const w=document.createElement('span'); w.className='hwrap';
+        const inp=document.createElement('input'); inp.className='secname'; inp.dataset.sec=i; inp.placeholder='Name this 8-count'; inp.value=nt.title; inp.setAttribute('aria-label','Name of 8-count '+(i+1));
+        const sm=document.createElement('small'); sm.textContent=times+' · tap the number to loop';
+        w.append(inp,sm); h.append(nb,w); el.append(h);
+        const ul=document.createElement('ul'); ul.className='rows';
+        for(let j=0;j<8;j++){
+          const li=document.createElement('li'); li.className='row'; li.dataset.sec=i; li.dataset.c=j;
+          const c=document.createElement('button'); c.className='c'; c.textContent=j+1; c.title='Jump to count '+(j+1);
+          const d=document.createElement('input'); d.className='d'; d.dataset.sec=i; d.dataset.c=j; d.value=nt.c[j]||''; d.placeholder= j===0&&i===0 ? 'Feet, arms, weight… type your notes' : ''; d.setAttribute('aria-label','Notes for count '+(j+1));
+          li.append(c,d); ul.append(li);
+        }
+        el.append(ul);
+      }
+      if(!(preset && i===8)){
+        const f=document.createElement('div'); f.className='secfoot';
+        f.innerHTML=`<button class="btn" data-loop="${i}">Loop at ½×</button>`+(i>0?`<button class="btn" data-chain="${i}">Chain 1–${i+1} at ¾×</button>`:'');
+        el.append(f);
+      }
+      box.appendChild(el);
+    }
+  }
+  function rebuild(){ recalc(); buildTimeline(); buildNotes(); clampLoop(); drawBand(); updateTiming(); render(); }
+
+  // ---------- loop
+  function loopTimes(){ return [Math.max(0, secStart(loopI)-PER*0.15), loopJ>=nSec()-1 ? dur : secEnd(loopJ)]; }
+  function clampLoop(){ const n=nSec(); loopI=Math.min(Math.max(0,loopI),Math.max(0,n-1)); loopJ=Math.min(Math.max(loopI,loopJ),Math.max(0,n-1)); }
+  function drawBand(){
+    band.classList.toggle('on', loopOn && dur>0);
+    if(dur){ const [a,b]=loopTimes(); band.style.left=(a/dur*100)+'%'; band.style.width=((b-a)/dur*100)+'%'; }
+    $('loopBtn').textContent = loopOn ? (loopJ>loopI ? 'Looping chain' : 'Loop 8-count') : 'Loop off';
+    updateModes();
+  }
+  function setLoop(i,j){ loopI=i; loopJ=j; clampLoop(); drawBand(); }
+  function loopSection(i, rate){
+    loopOn=true; $('loopBtn').setAttribute('aria-pressed','true');
+    setLoop(i,i); if(rate) setRate(rate);
+    seek(loopTimes()[0]); play();
+  }
+  function followLoop(t){ if(loopOn){ const [a,b]=loopTimes(); if(t<a-0.01||t>=b){ const i=Math.max(0,secIndexAt(t)); setLoop(i,i); } } }
+
+  // ---------- playback
+  function seek(t){ if(!dur) return; vid.currentTime=Math.min(Math.max(0,t),dur-0.02); lastHalf=null; render(); }
+  function userSeek(t){ followLoop(t); seek(t); }
+  function play(){ if(vid.src) vid.play().catch(()=>{}); }
+  function toggle(){ if(!vid.src) return; vid.paused?play():vid.pause(); }
+  function setRate(r){
+    r=Math.min(1.5,Math.max(0.25,Math.round(r*20)/20));
+    vid.defaultPlaybackRate=r; vid.playbackRate=r;
+    const pc=Math.round(r*100);
+    $('speed').value=pc; $('speedOut').textContent=pc+'%'; $('bSpeed').textContent=pc+'%';
+    document.querySelectorAll('[data-rate]').forEach(b=>b.setAttribute('aria-pressed', String(Math.abs(+b.dataset.rate-r)<0.001)));
+    updateModes(); savePrefs();
+  }
+  function updateModes(){
+    const r=vid.playbackRate||0.5;
+    $('modeBreak').setAttribute('aria-pressed', String(r<1 && loopOn));
+    $('modeFull').setAttribute('aria-pressed', String(Math.abs(r-1)<0.001 && !loopOn));
+  }
+  function stepCount(dir, half){
+    if(!dur) return; vid.pause();
+    const step=half?PER/2:PER, x=(vid.currentTime-st.t0)/step, n=Math.round(x);
+    let k = Math.abs(x-n)<0.15 ? n+dir : (dir>0?Math.ceil(x):Math.floor(x));
+    userSeek(st.t0+k*step+0.02);
+  }
+  function stepSec(dir){
+    if(!dur) return;
+    const i=secIndexAt(vid.currentTime), j=Math.min(nSec()-1,Math.max(0,i+dir));
+    if(loopOn) setLoop(j,j);
+    seek(Math.max(0,secStart(j)-PER*0.15));
+  }
+
+  // ---------- timing controls
+  function updateTiming(){
+    $('bpm').value = +st.bpm.toFixed(1);
+    $('t0lbl').textContent = fmt(st.t0,2);
+  }
+  function setBpm(b, msg){
+    b=+b; if(!isFinite(b)||b<30||b>300){ updateTiming(); return; }
+    st.bpm=Math.round(b*10)/10; saveVideo(); rebuild(); if(msg) tmsg(msg);
+  }
+  function setT0(t){ st.t0=Math.max(-5, Math.min(dur||t, t)); saveVideo(); rebuild(); }
+  function tmsg(s){ $('tmsg').textContent=s; }
+  $('bpm').addEventListener('change',e=>setBpm(e.target.value));
+  $('bpm').addEventListener('keydown',e=>{ if(e.key==='Enter') e.target.blur(); });
+  $('halfBpm').onclick=()=>setBpm(st.bpm/2, 'Half-time: one count every two beats. Check that count 1 still lands on the right move.');
+  $('dblBpm').onclick=()=>setBpm(st.bpm*2, 'Double-time: one count per beat.');
+  $('set1').onclick=()=>{ if(!dur) return; vid.pause(); setT0(vid.currentTime); tmsg('Count 1 set at '+fmt(st.t0,2)+'. Nudge it if the counts drift.'); };
+  document.querySelectorAll('[data-nudge]').forEach(b=>b.onclick=()=>{
+    if(!dur) return; const v=b.dataset.nudge;
+    setT0(st.t0 + (v==='beat'?PER:v==='-beat'?-PER:+v));
+  });
+  // tap tempo: measures in video time, so it works at any speed
+  let taps=[];
+  function tap(){
+    const now = (!vid.paused && vid.src) ? vid.currentTime : performance.now()/1000;
+    const real = !( !vid.paused && vid.src);
+    if(taps.length && (Math.abs(now-taps[taps.length-1].t)>2.5 || taps[taps.length-1].real!==real)) taps=[];
+    taps.push({t:now,real}); if(taps.length>9) taps.shift();
+    if(taps.length<3){ tmsg('Keep tapping on each count…'); return; }
+    const d=(taps[taps.length-1].t-taps[0].t)/(taps.length-1);
+    if(d<=0) return;
+    let b = 60/d; if(real && vid.src) b *= 1;    // paused: plain tapping
+    setBpm(b, 'Tapped about '+b.toFixed(1)+' BPM ('+taps.length+' taps).');
+  }
+  $('tapBtn').onclick=tap;
+
+  // ---------- tempo detection (in the browser, from the video's audio)
+  async function detect(f){
+    if(!f) return;
+    if(f.size>400e6){ tmsg('This file is large, so set the tempo by hand or with Tap.'); return; }
+    tmsg('Listening for the beat…'); $('detectBtn').disabled=true;
+    try{
+      const AC=window.AudioContext||window.webkitAudioContext, ac=new AC();
+      const buf=await f.arrayBuffer();
+      const ab=await new Promise((res,rej)=>{ const p=ac.decodeAudioData(buf,res,rej); if(p&&p.then) p.then(res,rej); });
+      try{ ac.close(); }catch(e){}
+      const sr=ab.sampleRate, d0=ab.getChannelData(0), d1=ab.numberOfChannels>1?ab.getChannelData(1):null;
+      const hop=Math.round(sr/100), F=Math.floor(ab.length/hop), fr=sr/hop;
+      const env=new Float32Array(F), on=new Float32Array(F);
+      const a=1-Math.exp(-2*Math.PI*180/sr); let lp=0;
+      for(let f=0;f<F;f++){ let eL=0,eA=0; const e=(f+1)*hop; for(let i=f*hop;i<e;i++){ const x=d1?(d0[i]+d1[i])*0.5:d0[i]; lp+=a*(x-lp); eL+=lp*lp; eA+=x*x; } env[f]=Math.log(1e-9+eL)+0.5*Math.log(1e-9+eA); }
+      let m=0; for(let f=1;f<F;f++){ on[f]=Math.max(0,env[f]-env[f-1]); m+=on[f]; } m/=F;
+      for(let f=0;f<F;f++) on[f]-=m;
+      const score=(bpm,ph)=>{ const per=fr*60/bpm; let s=0,c=0; for(let x=ph;x<F;x+=per){ s+=on[Math.round(x)]||0; c++; } return c?s/c:-1e9; };
+      let best={s:-1e9,b:120,p:0};
+      for(let b=85;b<=170;b+=0.25){ const per=fr*60/b; for(let p=0;p<per;p+=1){ const s=score(b,p); if(s>best.s) best={s,b,p}; } }
+      for(let b=best.b-0.5;b<=best.b+0.5;b+=0.05){ const per=fr*60/b; for(let p=0;p<per;p+=0.5){ const s=score(b,p); if(s>best.s) best={s,b,p}; } }
+      st.bpm=Math.round(best.b*10)/10; st.t0=best.p/fr; saveVideo(); rebuild();
+      tmsg('Detected about '+st.bpm+' BPM. For trap and other 140+ songs, try “½ time”. Then pause where the routine starts and press “Set 1 here”.');
+    }catch(e){
+      tmsg('Couldn’t read this video’s audio. Set the tempo by hand or with Tap.');
+    }
+    $('detectBtn').disabled=false;
+  }
+  $('detectBtn').onclick=()=>detect(curFile);
+
+  // ---------- clicks
+  let actx=null;
+  function click(accent){
+    try{
+      actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+      const o=actx.createOscillator(), g=actx.createGain();
+      o.frequency.value = accent?1760:1100; g.gain.setValueAtTime(0.25,actx.currentTime); g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+0.06);
+      o.connect(g).connect(actx.destination); o.start(); o.stop(actx.currentTime+0.07);
+    }catch(e){}
+  }
+
+  // ---------- render loop
+  function secTitle(i){ if(preset && DATA[i]) return DATA[i].name; const n=st.notes[i]; return n&&n.title ? n.title : ''; }
+  function render(){
+    if(!dur) return;
+    const t=vid.currentTime||0;
+    head.style.left=(t/dur*100)+'%';
+    tl.setAttribute('aria-valuenow', t.toFixed(1)); tl.setAttribute('aria-valuetext', fmt(t));
+    $('tNow').textContent=fmt(t);
+    const c=countInfo(t), si=secIndexAt(t);
+    if(c.intro){ $('count').innerHTML=c.label; $('hudmeta').textContent= c.label==='–' ? 'Before count 1' : 'Count-in'; }
+    else if(preset && si===8){ $('count').textContent='End'; $('hudmeta').textContent='Ending pose'; }
+    else { $('count').innerHTML=c.label+(c.and?'<span class="and">&amp;</span>':''); const nm=secTitle(si); $('hudmeta').innerHTML=''; $('hudmeta').append('8-count '+(si+1)); if(nm){ $('hudmeta').append(document.createElement('br'), nm); } }
+    if(si!==curSec){
+      curSec=si;
+      document.querySelectorAll('.seg').forEach(s=>s.classList.toggle('cur', +s.dataset.idx===si));
+      document.querySelectorAll('.sec').forEach(s=>s.classList.toggle('cur', +s.dataset.idx===si));
+    }
+    let row=null;
+    if(si>=0 && !c.intro) row=document.querySelector(`.row[data-sec="${si}"][data-c="${c.count-1}"]`);
+    if(row!==curRow){ curRow&&curRow.classList.remove('cur'); row&&row.classList.add('cur'); curRow=row; }
+    if(!vid.paused && clickOn && lastHalf!==null && c.half!==lastHalf && !(c.half&1) && !(c.intro&&c.label==='–')) click(!c.intro && c.count===1);
+    lastHalf=c.half;
+  }
+  function tick(){
+    if(dur && !vid.paused && loopOn){ const [a,b]=loopTimes(); if(vid.currentTime>=b){ vid.currentTime=a; lastHalf=null; } }
+    render(); requestAnimationFrame(tick);
+  }
+
+  // ---------- scrubbing
+  function tFromEvent(e){ const r=tl.getBoundingClientRect(); return Math.min(1,Math.max(0,(e.clientX-r.left)/r.width))*dur; }
+  tl.addEventListener('pointerdown',e=>{ if(!vid.src) return; dragging=true; tl.setPointerCapture(e.pointerId); userSeek(tFromEvent(e)); });
+  tl.addEventListener('pointermove',e=>{ if(dragging) userSeek(tFromEvent(e)); });
+  tl.addEventListener('pointerup',()=>{ dragging=false; });
+  tl.addEventListener('keydown',e=>{ if(e.key==='ArrowLeft'||e.key==='ArrowRight'){ e.preventDefault(); e.stopPropagation(); stepCount(e.key==='ArrowRight'?1:-1, e.shiftKey); } });
+
+  // ---------- controls
+  $('play').onclick=toggle;
+  $('prevCnt').onclick=()=>stepCount(-1,false);
+  $('nextCnt').onclick=()=>stepCount(1,false);
+  $('prevSec').onclick=()=>stepSec(-1);
+  $('nextSec').onclick=()=>stepSec(1);
+  $('speed').addEventListener('input',e=>setRate(e.target.value/100));
+  document.querySelectorAll('[data-rate]').forEach(b=>b.onclick=()=>setRate(+b.dataset.rate));
+  $('loopBtn').onclick=()=>{
+    loopOn=!loopOn; $('loopBtn').setAttribute('aria-pressed',String(loopOn));
+    if(loopOn){ const i=Math.max(0,secIndexAt(vid.currentTime)); setLoop(i,i); }
+    drawBand(); savePrefs();
+  };
+  $('mirrorBtn').onclick=()=>{ const on=stage.classList.toggle('mirror'); $('mirrorBtn').setAttribute('aria-pressed',String(on)); $('bMirror').textContent=on?'Mirrored':'Original'; savePrefs(); };
+  $('clickBtn').onclick=()=>{ clickOn=!clickOn; $('clickBtn').setAttribute('aria-pressed',String(clickOn)); if(clickOn) click(true); savePrefs(); };
+  $('modeBreak').onclick=()=>{ if(!dur) return; const i=Math.max(0,secIndexAt(vid.currentTime)); loopSection(i,0.5); };
+  $('modeFull').onclick=()=>{ if(!dur) return; loopOn=false; $('loopBtn').setAttribute('aria-pressed','false'); drawBand(); setRate(1); seek(0); play(); };
+
+  $('secs').addEventListener('click',e=>{
+    if(!vid.src || e.target.closest('input')) return;
+    const L=e.target.closest('[data-loop]'), C=e.target.closest('[data-chain]'), R=e.target.closest('.row');
+    if(L){ loopSection(+L.dataset.loop, 0.5); return; }
+    if(C){ const i=+C.dataset.chain; loopOn=true; $('loopBtn').setAttribute('aria-pressed','true'); setLoop(0,i); setRate(0.75); seek(loopTimes()[0]); play(); return; }
+    if(R){ vid.pause(); userSeek(secStart(+R.dataset.sec)+(+R.dataset.c)*PER+0.02); }
+  });
+  $('secs').addEventListener('input',e=>{
+    const t=e.target, i=+t.dataset.sec; if(!t.matches('input')) return;
+    const nt=noteFor(i);
+    if(t.classList.contains('secname')) nt.title=t.value; else nt.c[+t.dataset.c]=t.value;
+    curSec=null; saveVideo();
+  });
+
+  document.addEventListener('keydown',e=>{
+    if(e.target.closest('input:not([type=range]),textarea')) return;
+    if(e.metaKey||e.ctrlKey||e.altKey) return;
+    const k=e.key;
+    if(k===' '){ e.preventDefault(); toggle(); }
+    else if(k==='ArrowLeft'||k==='ArrowRight'){ e.preventDefault(); stepCount(k==='ArrowRight'?1:-1, e.shiftKey); }
+    else if(k==='ArrowUp'||k==='ArrowDown'){ e.preventDefault(); stepSec(k==='ArrowDown'?1:-1); }
+    else if(k==='['||k===']') setRate((vid.playbackRate||0.5)+(k===']'?0.05:-0.05));
+    else if(k==='l'||k==='L') $('loopBtn').click();
+    else if(k==='m'||k==='M') $('mirrorBtn').click();
+    else if(k==='c'||k==='C') $('clickBtn').click();
+    else if(k==='t'||k==='T') tap();
+    else if(k==='1') $('set1').click();
+    else if(k===','||k==='.') { if(dur) setT0(st.t0+(k==='.'?0.02:-0.02)); }
+  });
+
+  vid.addEventListener('play',()=>$('play').textContent='Pause');
+  vid.addEventListener('pause',()=>$('play').textContent='Play');
+  vid.addEventListener('ended',()=>{ $('play').textContent='Replay'; });
+
+  // ---------- loading a video
+  function prettyName(n){ return (n||'Untitled video').replace(/\.[a-z0-9]+$/i,'').replace(/^YTDown[._]com[_ ]YouTube[_ ]Media[_ ][A-Za-z0-9_-]{11}[_ ]/i,'').replace(/[_]+/g,' ').replace(/\s+/g,' ').trim().slice(0,70); }
+  function useFile(f, remember){
+    curFile=f; preset=isPreset(f); key=(f.name||'video')+'|'+f.size;
+    const saved=loadVideo(key);
+    let needDetect=false;
+    if(saved && saved.bpm){ st={bpm:saved.bpm,t0:saved.t0||0,notes:saved.notes||[]}; }
+    else if(preset){ st={bpm:PRESET.bpm,t0:PRESET.t0,notes:[]}; }
+    else { st={bpm:120,t0:0,notes:[]}; needDetect=true; }
+    $('h1').textContent = preset ? 'Love Is a Drug' : prettyName(f.name);
+    $('sub').textContent = preset
+      ? 'Beginner combo, 8 eight-counts plus an ending. Learn each 8-count at half speed on a loop, then run it all at full speed.'
+      : 'Set the tempo and where count 1 lands, then learn it 8-count by 8-count and run it at full speed.';
+    $('lede').textContent = preset
+      ? 'Left and right are the dancer’s own. With Mirror on, just copy the screen like a mirror and your sides will match. Tap any count to jump to it; tap an 8-count’s title to loop it.'
+      : 'Left and right are the dancer’s own; with Mirror on, copy the screen like a mirror. Tap a count number to jump to it, tap an 8-count’s big number to loop it, and type notes for any count. Notes save in this browser for this video.';
+    $('fine').textContent = preset
+      ? 'Counts sit on the song’s ~143 BPM pulse, so every count is one move. If your teacher counts in half-time, press “½ time” and one of their 8-counts will cover two of these. Counts were read from the video frame by frame, so use the slow loop to confirm turn directions and small hand details.'
+      : 'Counts follow the tempo and count 1 you set. If the counts slowly drift off the music, adjust the tempo by 0.1 at a time; if they’re off by the same amount everywhere, nudge count 1.';
+    if(objURL) URL.revokeObjectURL(objURL);
+    objURL=URL.createObjectURL(f);
+    dur=0; vid.src=objURL;
+    drop.hidden=true; $('err').hidden=true; $('hud').hidden=false; $('badge').hidden=false; $('changeBtn').hidden=false;
+    vid.addEventListener('loadedmetadata',()=>{
+      dur = isFinite(vid.duration)&&vid.duration>0 ? vid.duration : 0;
+      tl.setAttribute('aria-valuemax',dur.toFixed(1)); $('tDur').textContent=fmt(dur);
+      loopI=loopJ=0; rebuild(); setRate(vid.defaultPlaybackRate||0.5); seek(0);
+      tmsg(saved ? 'Tempo and count 1 restored from last time.' : preset ? 'Tempo and count 1 are set for this class video. Adjust them any time.' : 'Set the tempo, then pause on the move that starts the routine and press “Set 1 here”.');
+      if(needDetect) detect(f);
+    },{once:true});
+    vid.onerror=()=>{ drop.hidden=false; $('hud').hidden=true; $('err').hidden=false; $('err').textContent='That file can’t be played in this browser. Try an MP4 or WebM.'; };
+    if(remember) cacheVideo(f);
+  }
+  function handleFile(f){ if(!f) return; if(!/^video\//.test(f.type) && !/\.(mp4|mov|webm|m4v|mkv)$/i.test(f.name)){ $('err').hidden=false; $('err').textContent='Choose a video file (MP4, MOV or WebM).'; return; } useFile(f,true); }
+  $('pickBtn').onclick=()=>$('file').click();
+  $('changeBtn').onclick=()=>$('file').click();
+  $('file').onchange=e=>{ handleFile(e.target.files[0]); e.target.value=''; };
+  ['dragenter','dragover'].forEach(ev=>stage.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
+  ['dragleave','drop'].forEach(ev=>stage.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
+  stage.addEventListener('drop',e=>handleFile(e.dataTransfer.files[0]));
+
+  // ---------- init
+  const p=loadPrefs();
+  if(p){ if(p.mirror===false){ stage.classList.remove('mirror'); $('mirrorBtn').setAttribute('aria-pressed','false'); $('bMirror').textContent='Original'; }
+         loopOn=p.loop!==false; $('loopBtn').setAttribute('aria-pressed',String(loopOn));
+         clickOn=!!p.click; $('clickBtn').setAttribute('aria-pressed',String(clickOn)); }
+  setRate(p&&p.rate?p.rate:0.5);
+  updateTiming(); buildNotes();
+  cachedVideo().then(c=>{ if(!c) return; const b=c.blob||c; if(b && !b.name && c.name){ try{ useFile(new File([b],c.name,{type:b.type}),false); return; }catch(e){} } useFile(b,false); });
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

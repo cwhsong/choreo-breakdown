@@ -1,0 +1,11 @@
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Practice videos stay out of the repo
+*.mp4
+*.mov
+*.webm
+*.m4v
+*.mkv
