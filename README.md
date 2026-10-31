@@ -4,6 +4,8 @@ A practice tool for learning dance choreography from video, 8-count by 8-count.
 
 Load any choreo video from your device, set the tempo and where count 1 lands, then loop each 8-count at slow speed in a mirrored view before running the whole routine at full speed.
 
+https://cwhsong.github.io/choreo-breakdown/
+
 ## Features
 
 - Works with any video file on your device (MP4, MOV, WebM). Videos never leave your device.
