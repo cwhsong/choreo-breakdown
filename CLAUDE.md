@@ -1,7 +1,9 @@
-# Choreo Looper — notes for Claude
+# Choreo Breakdown App — notes for Claude
 
 ## What this is
-A dance-practice tool: the user loads a choreography video from their own device and learns it in 8-counts (looping, slow speed, mirror view, per-count notes). It is a single static page hosted on GitHub Pages. There is no server and no build step; videos never leave the user's device.
+A practice tool for dance. The user loads a choreography video from their own device and the app provides tools to help learn choreo, such as mirroring, changing speed, looping, and breaking into 8-counts. 
+
+It is a single static page hosted on GitHub Pages. There is no server and no build step; videos never leave the user's device.
 
 ## Layout
 Everything lives in `index.html`: CSS in `<style>`, markup, then one IIFE in `<script>`. The script is organized by `// ----------` comment headers:
@@ -16,7 +18,7 @@ Everything lives in `index.html`: CSS in `<style>`, markup, then one IIFE in `<s
 - **loading a video**: `useFile(file, remember)` sets the per-video key, restores or initializes `st`, and rebuilds when metadata loads.
 
 ## Storage
-- `localStorage['clp-prefs']`: mirror, speed, loop, clicks (global).
+- `localStorage['clp-prefs']`: mirror, speed, loop, clicks, theater view (global).
 - `localStorage['clp:<file name>|<file size>']`: `{bpm, t0, notes}` per video. `notes[i] = {title, c: [8 strings]}`.
 - IndexedDB database `clp`, store `v`, key `video`: the last loaded video file, so it reloads automatically.
 

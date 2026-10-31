@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Choreo Looper</title>
+<title>Choreo Breakdown</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -38,12 +38,16 @@ button,input{font:inherit;color:inherit}
 header.title{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
 header.title h1{font:900 clamp(34px,5.4vw,64px)/.9 var(--display);letter-spacing:-.01em;margin:0;text-transform:uppercase;overflow-wrap:anywhere}
 header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
-.modes{display:flex;gap:8px;flex-wrap:wrap}
-.mode{border:2px solid var(--ink);background:transparent;padding:9px 16px;border-radius:999px;font-weight:600;cursor:pointer}
-.mode[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.views{display:flex;gap:8px;flex-wrap:wrap}
+@media (max-width:900px){#theaterBtn{display:none}}
 
 .player{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-top:6px}
 @media (max-width:900px){.player{position:static}}
+/* theater: video spans the full width, breakdown moves below the tools */
+.wrap.theater{grid-template-columns:1fr}
+.wrap.theater .player{position:static}
+.wrap.theater .stage{max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px)}
+@media (min-width:901px){.wrap.theater #secs{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;align-items:start}.wrap.theater .sec{margin-bottom:0}.wrap.theater #secs .empty{grid-column:1/-1;margin:0}}
 .stage{position:relative;aspect-ratio:16/9;background:#0E1114;border-radius:6px;overflow:hidden}
 .stage video{width:100%;height:100%;object-fit:contain;display:block;transition:transform .25s}
 .stage.mirror video{transform:scaleX(-1)}
@@ -71,7 +75,7 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
 .head{position:absolute;top:0;width:3px;height:42px;background:var(--head);border-radius:2px;margin-left:-1px;pointer-events:none}
 .times{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;margin-top:-2px}
 
-.transport,.timing{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
+.transport,.tools,.timing{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
 .btn{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:8px 11px;cursor:pointer;min-height:40px;display:inline-flex;align-items:center;gap:6px;font-weight:500}
 .btn:hover{border-color:var(--muted)}
 .btn[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
@@ -131,12 +135,12 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
 <div class="wrap">
   <header class="title">
     <div>
-      <h1 id="h1">Choreo looper</h1>
+      <h1 id="h1">Choreo breakdown</h1>
       <p id="sub">Load any choreography video, set the tempo and where count 1 lands, then learn it 8-count by 8-count.</p>
     </div>
-    <div class="modes" role="group" aria-label="Practice mode">
-      <button class="mode" id="modeBreak" aria-pressed="true">Breakdown · ½ speed</button>
-      <button class="mode" id="modeFull" aria-pressed="false">Full-speed run</button>
+    <div class="views">
+      <button class="btn" id="theaterBtn" aria-pressed="false" title="Theater view: wider video, breakdown below">Theater</button>
+      <button class="btn" id="changeBtn" hidden>Change video</button>
     </div>
   </header>
 
@@ -169,6 +173,9 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
       <button class="btn play" id="play">Play</button>
       <button class="btn" id="nextCnt" title="Forward one count (→)" aria-label="Forward one count">+1</button>
       <button class="btn" id="nextSec" title="Next 8-count (↓)" aria-label="Next 8-count">⏭</button>
+    </div>
+    <div class="tools">
+      <button class="btn" id="mirrorBtn" aria-pressed="true" title="Mirror (M)">Mirror</button>
       <label class="speed" title="Speed in 5% steps ([ and ])"><span class="lab">Speed</span>
         <input type="range" id="speed" min="25" max="150" step="5" value="50" aria-label="Playback speed">
         <output id="speedOut">50%</output>
@@ -178,11 +185,9 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
         <button class="btn" data-rate="0.75">¾×</button>
         <button class="btn" data-rate="1">1×</button>
       </div>
+    </div>
+    <div class="tools">
       <button class="btn" id="loopBtn" aria-pressed="true" title="Loop this 8-count (L)">Loop 8-count</button>
-      <button class="btn" id="mirrorBtn" aria-pressed="true" title="Mirror (M)">Mirror</button>
-      <button class="btn" id="clickBtn" aria-pressed="false" title="Count clicks (C)">Clicks</button>
-      <span class="spacer"></span>
-      <button class="btn" id="changeBtn" hidden>Change video</button>
     </div>
 
     <div class="timing" id="timing" aria-label="Count timing">
@@ -193,6 +198,7 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
       </div>
       <button class="btn" id="tapBtn" title="Tap on each count while the video plays (T)">Tap</button>
       <button class="btn" id="detectBtn" title="Estimate the tempo from the song">Detect</button>
+      <button class="btn" id="clickBtn" aria-pressed="false" title="Count clicks (C)">Clicks</button>
       <span class="sep" aria-hidden="true"></span>
       <span class="field"><span class="lab">Count 1 at</span><span class="t0val" id="t0lbl">0:00.00</span></span>
       <button class="btn" id="set1" title="Make the current moment count 1 (1)">Set 1 here</button>
@@ -274,7 +280,7 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
   }
 
   // ---------- storage
-  function savePrefs(){ try{ localStorage.setItem('clp-prefs', JSON.stringify({mirror:stage.classList.contains('mirror'),rate:vid.playbackRate,loop:loopOn,click:clickOn})); }catch(e){} }
+  function savePrefs(){ try{ localStorage.setItem('clp-prefs', JSON.stringify({mirror:stage.classList.contains('mirror'),rate:vid.playbackRate,loop:loopOn,click:clickOn,theater:$('theaterBtn').getAttribute('aria-pressed')==='true'})); }catch(e){} }
   function loadPrefs(){ try{ return JSON.parse(localStorage.getItem('clp-prefs')||'null'); }catch(e){ return null; } }
   let saveT=null;
   function saveVideo(){ if(!key) return; clearTimeout(saveT); saveT=setTimeout(()=>{ try{ localStorage.setItem('clp:'+key, JSON.stringify(st)); }catch(e){} },250); }
@@ -347,7 +353,6 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
     band.classList.toggle('on', loopOn && dur>0);
     if(dur){ const [a,b]=loopTimes(); band.style.left=(a/dur*100)+'%'; band.style.width=((b-a)/dur*100)+'%'; }
     $('loopBtn').textContent = loopOn ? (loopJ>loopI ? 'Looping chain' : 'Loop 8-count') : 'Loop off';
-    updateModes();
   }
   function setLoop(i,j){ loopI=i; loopJ=j; clampLoop(); drawBand(); }
   function loopSection(i, rate){
@@ -368,12 +373,7 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
     const pc=Math.round(r*100);
     $('speed').value=pc; $('speedOut').textContent=pc+'%'; $('bSpeed').textContent=pc+'%';
     document.querySelectorAll('[data-rate]').forEach(b=>b.setAttribute('aria-pressed', String(Math.abs(+b.dataset.rate-r)<0.001)));
-    updateModes(); savePrefs();
-  }
-  function updateModes(){
-    const r=vid.playbackRate||0.5;
-    $('modeBreak').setAttribute('aria-pressed', String(r<1 && loopOn));
-    $('modeFull').setAttribute('aria-pressed', String(Math.abs(r-1)<0.001 && !loopOn));
+    savePrefs();
   }
   function stepCount(dir, half){
     if(!dur) return; vid.pause();
@@ -514,8 +514,8 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
   };
   $('mirrorBtn').onclick=()=>{ const on=stage.classList.toggle('mirror'); $('mirrorBtn').setAttribute('aria-pressed',String(on)); $('bMirror').textContent=on?'Mirrored':'Original'; savePrefs(); };
   $('clickBtn').onclick=()=>{ clickOn=!clickOn; $('clickBtn').setAttribute('aria-pressed',String(clickOn)); if(clickOn) click(true); savePrefs(); };
-  $('modeBreak').onclick=()=>{ if(!dur) return; const i=Math.max(0,secIndexAt(vid.currentTime)); loopSection(i,0.5); };
-  $('modeFull').onclick=()=>{ if(!dur) return; loopOn=false; $('loopBtn').setAttribute('aria-pressed','false'); drawBand(); setRate(1); seek(0); play(); };
+  function setTheater(on){ document.querySelector('.wrap').classList.toggle('theater',on); $('theaterBtn').setAttribute('aria-pressed',String(on)); }
+  $('theaterBtn').onclick=()=>{ setTheater($('theaterBtn').getAttribute('aria-pressed')!=='true'); savePrefs(); };
 
   $('secs').addEventListener('click',e=>{
     if(!vid.src || e.target.closest('input')) return;
@@ -596,7 +596,8 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
   const p=loadPrefs();
   if(p){ if(p.mirror===false){ stage.classList.remove('mirror'); $('mirrorBtn').setAttribute('aria-pressed','false'); $('bMirror').textContent='Original'; }
          loopOn=p.loop!==false; $('loopBtn').setAttribute('aria-pressed',String(loopOn));
-         clickOn=!!p.click; $('clickBtn').setAttribute('aria-pressed',String(clickOn)); }
+         clickOn=!!p.click; $('clickBtn').setAttribute('aria-pressed',String(clickOn));
+         setTheater(!!p.theater); }
   setRate(p&&p.rate?p.rate:0.5);
   updateTiming(); buildNotes();
   cachedVideo().then(c=>{ if(!c) return; const b=c.blob||c; if(b && !b.name && c.name){ try{ useFile(new File([b],c.name,{type:b.type}),false); return; }catch(e){} } useFile(b,false); });
