@@ -33,7 +33,7 @@ button,input{font:inherit;color:inherit}
 :focus-visible{outline:3px solid var(--loop);outline-offset:2px}
 
 .wrap{max-width:1320px;margin:0 auto;padding:20px clamp(12px,3vw,32px) 48px;display:grid;grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);gap:28px;align-items:start}
-@media (max-width:900px){.wrap{grid-template-columns:1fr;gap:18px}}
+@media (max-width:900px){.wrap{grid-template-columns:minmax(0,1fr);gap:18px}}
 
 header.title{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
 header.title h1{font:900 clamp(34px,5.4vw,64px)/.9 var(--display);letter-spacing:-.01em;margin:0;text-transform:uppercase;overflow-wrap:anywhere}
@@ -49,9 +49,16 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
 .wrap.theater .stage{max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px)}
 @media (min-width:901px){.wrap.theater #secs{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;align-items:start}.wrap.theater .sec{margin-bottom:0}.wrap.theater #secs .empty{grid-column:1/-1;margin:0}}
 .stage{position:relative;aspect-ratio:16/9;background:#0E1114;border-radius:6px;overflow:hidden}
-.stage video{width:100%;height:100%;object-fit:contain;display:block;transition:transform .25s}
-.stage.mirror video{transform:scaleX(-1)}
-@media (prefers-reduced-motion:reduce){.stage video{transition:none}}
+.stage video,.stage .yt{position:absolute;inset:0;width:100%;height:100%;transition:transform .25s}
+.stage video{object-fit:contain;display:block}
+.stage .yt iframe{width:100%;height:100%;border:0;display:block}
+.stage.mirror video,.stage.mirror .yt{transform:scaleX(-1)}
+.stage[data-src="yt"] video,.stage:not([data-src="yt"]) .yt{display:none}
+@media (prefers-reduced-motion:reduce){.stage video,.stage .yt{transition:none}}
+/* picking a source: the panel grows to fit its content (phones) */
+.stage.picking{aspect-ratio:auto}
+.stage.picking .drop{position:relative;aspect-ratio:16/9}
+.stage.picking .hud,.stage.picking .badge{display:none}
 .hud{position:absolute;left:12px;bottom:10px;display:flex;align-items:flex-end;gap:10px;pointer-events:none}
 .count{font:900 clamp(56px,9vw,112px)/.8 var(--display);color:var(--tape);text-shadow:0 2px 0 rgba(0,0,0,.45)}
 .count .and{font-size:.55em;margin-left:2px}
@@ -59,7 +66,15 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
 .badge{position:absolute;right:10px;top:10px;display:flex;gap:6px}
 .badge span{background:rgba(0,0,0,.55);color:#fff;font:600 12px/1 var(--body);padding:6px 8px;border-radius:4px}
 
-.drop{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;padding:20px;color:#DDE3E9;border:2px dashed #46505A;border-radius:6px}
+.drop{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;padding:44px 20px 28px;color:#DDE3E9;background:#0E1114;border:2px dashed #46505A;border-radius:6px}
+.ytform{display:flex;gap:8px;width:min(100%,480px)}
+.ytform input{flex:1;width:0;min-width:0;background:rgba(255,255,255,.08);border:1px solid #46505A;border-radius:999px;padding:9px 16px;min-height:42px;color:#fff}
+.ytform input::placeholder{color:#AEB8C2}
+.droprow{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:100%}
+.pick.alt{background:transparent;color:#fff;border:1px solid #46505A}
+.drop .or{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+#lastFileBtn{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drop .cancel{position:absolute;top:6px;right:6px;background:none;border:0;color:#AEB8C2;padding:8px 10px;cursor:pointer;font-weight:600}
 .drop.over{border-color:var(--tape);background:rgba(244,196,48,.08)}
 .drop strong{font:800 clamp(22px,3vw,30px)/1 var(--display);text-transform:uppercase;color:#fff}
 .drop p{margin:0;max-width:46ch;font-size:14px;color:#AEB8C2}
@@ -136,7 +151,7 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
   <header class="title">
     <div>
       <h1 id="h1">Choreo breakdown</h1>
-      <p id="sub">Load any choreography video, set the tempo and where count 1 lands, then learn it 8-count by 8-count.</p>
+      <p id="sub">Paste a YouTube link or load a video from your device, set the tempo and where count 1 lands, then learn it 8-count by 8-count.</p>
     </div>
     <div class="views">
       <button class="btn" id="theaterBtn" aria-pressed="false" title="Theater view: wider video, breakdown below">Theater</button>
@@ -145,13 +160,24 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
   </header>
 
   <section class="player" aria-label="Video player">
-    <div class="stage mirror" id="stage">
+    <div class="stage mirror picking" id="stage" data-src="">
       <video id="vid" playsinline preload="auto"></video>
+      <div class="yt" id="yt"><div id="ytHost"></div></div>
       <div class="drop" id="drop">
+        <button class="cancel" id="cancelPick" hidden>Cancel</button>
         <strong>Load a choreo video</strong>
-        <p>Choose a dance video from your device, or drop it here. It stays on your device, and this browser remembers the last one along with its tempo, count 1 and notes.</p>
-        <button class="pick" id="pickBtn">Choose video</button>
-        <p class="err" id="err" hidden></p>
+        <form class="ytform" id="ytForm" novalidate>
+          <input type="url" id="ytUrl" placeholder="Paste a YouTube link" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="YouTube link">
+          <button class="pick" type="submit">Load</button>
+        </form>
+        <div class="droprow"><button class="pick alt" id="pasteBtn" hidden>Paste link &amp; load</button></div>
+        <span class="or">or</span>
+        <div class="droprow">
+          <button class="pick alt" id="pickBtn">Choose a file</button>
+          <button class="pick alt" id="lastFileBtn" hidden>Reopen last file</button>
+        </div>
+        <p>Files stay on your device; you can also drop one here. Tempo, count 1 and notes are saved per video in this browser.</p>
+        <p class="err" id="err" role="alert" hidden></p>
       </div>
       <div class="hud" id="hud" hidden>
         <div class="count" id="count">–</div>
@@ -260,6 +286,8 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
   const vid=$('vid'), stage=$('stage'), drop=$('drop'), tl=$('timeline'), head=$('head'), band=$('loopband');
   let st = {bpm:120, t0:0, notes:[]};          // per-video timing + notes
   let key=null, preset=false, curFile=null, dur=0;
+  let kind=null;                                // video source: 'file' | 'yt' | null
+  let rate=0.5, loadTok=0;                      // current speed; loadTok cancels stale loads
   let PER=0.5, SEC=4;
   let loopOn=true, loopI=0, loopJ=0, clickOn=false, curSec=null, curRow=null, lastHalf=null, dragging=false, objURL=null;
 
@@ -280,7 +308,7 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
   }
 
   // ---------- storage
-  function savePrefs(){ try{ localStorage.setItem('clp-prefs', JSON.stringify({mirror:stage.classList.contains('mirror'),rate:vid.playbackRate,loop:loopOn,click:clickOn,theater:$('theaterBtn').getAttribute('aria-pressed')==='true'})); }catch(e){} }
+  function savePrefs(){ try{ localStorage.setItem('clp-prefs', JSON.stringify({mirror:stage.classList.contains('mirror'),rate,loop:loopOn,click:clickOn,theater:$('theaterBtn').getAttribute('aria-pressed')==='true'})); }catch(e){} }
   function loadPrefs(){ try{ return JSON.parse(localStorage.getItem('clp-prefs')||'null'); }catch(e){ return null; } }
   let saveT=null;
   function saveVideo(){ if(!key) return; clearTimeout(saveT); saveT=setTimeout(()=>{ try{ localStorage.setItem('clp:'+key, JSON.stringify(st)); }catch(e){} },250); }
@@ -288,6 +316,9 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
   function idb(){ return new Promise((res,rej)=>{ try{ const r=indexedDB.open('clp',1); r.onupgradeneeded=()=>r.result.createObjectStore('v'); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);}catch(e){rej(e)} }); }
   async function cacheVideo(f){ try{ const db=await idb(); db.transaction('v','readwrite').objectStore('v').put({blob:f,name:f.name,size:f.size},'video'); }catch(e){} }
   async function cachedVideo(){ try{ const db=await idb(); return await new Promise(res=>{ const r=db.transaction('v').objectStore('v').get('video'); r.onsuccess=()=>res(r.result||null); r.onerror=()=>res(null); }); }catch(e){ return null; } }
+  // which source to reopen on the next visit: {type:'yt', id} or {type:'file'} (the file itself is in IndexedDB)
+  function setLast(o){ try{ localStorage.setItem('clp-last', JSON.stringify(o)); }catch(e){} }
+  function getLast(){ try{ return JSON.parse(localStorage.getItem('clp-last')||'null'); }catch(e){ return null; } }
 
   // ---------- timeline
   function buildTimeline(){
@@ -362,28 +393,42 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
   }
   function followLoop(t){ if(loopOn){ const [a,b]=loopTimes(); if(t<a-0.01||t>=b){ const i=Math.max(0,secIndexAt(t)); setLoop(i,i); } } }
 
-  // ---------- playback
-  function seek(t){ if(!dur) return; vid.currentTime=Math.min(Math.max(0,t),dur-0.02); lastHalf=null; render(); }
+  // ---------- playback: one interface over the <video> element and the YouTube player
+  const hasSrc = () => kind==='file' ? !!vid.getAttribute('src') : kind==='yt' ? ytOk : false;
+  const T = () => kind==='yt' ? ytTime() : (vid.currentTime||0);
+  const isPaused = () => kind==='yt' ? !(ytState===1||ytState===3) : vid.paused;
+  function rawSeek(t){ if(kind==='yt') ytSeek(t); else vid.currentTime=t; }
+  function seek(t){ if(!dur) return; rawSeek(Math.min(Math.max(0,t),dur-0.02)); lastHalf=null; render(); }
   function userSeek(t){ followLoop(t); seek(t); }
-  function play(){ if(vid.src) vid.play().catch(()=>{}); }
-  function toggle(){ if(!vid.src) return; vid.paused?play():vid.pause(); }
+  function play(){ if(!hasSrc()) return; if(kind==='yt') ytPlay(); else vid.play().catch(()=>{}); }
+  function pause(){ if(kind==='yt'){ ytHold=false; if(ytReady) try{ yt.pauseVideo(); }catch(e){} } else vid.pause(); }
+  function toggle(){ if(!hasSrc()) return; isPaused()?play():pause(); }
   function setRate(r){
     r=Math.min(1.5,Math.max(0.25,Math.round(r*20)/20));
-    vid.defaultPlaybackRate=r; vid.playbackRate=r;
-    const pc=Math.round(r*100);
+    if(kind==='yt'){ r=ytSnapRate(r); if(ytReady) try{ yt.setPlaybackRate(r); }catch(e){} }
+    else { vid.defaultPlaybackRate=r; vid.playbackRate=r; }
+    rate=r; showRate(); savePrefs();
+  }
+  function showRate(){
+    const pc=Math.round(rate*100);
     $('speed').value=pc; $('speedOut').textContent=pc+'%'; $('bSpeed').textContent=pc+'%';
-    document.querySelectorAll('[data-rate]').forEach(b=>b.setAttribute('aria-pressed', String(Math.abs(+b.dataset.rate-r)<0.001)));
-    savePrefs();
+    document.querySelectorAll('[data-rate]').forEach(b=>b.setAttribute('aria-pressed', String(Math.abs(+b.dataset.rate-rate)<0.001)));
+  }
+  // [ and ]: 5% steps for files; YouTube may only offer fixed speeds, so step to the next one it has
+  function stepRate(dir){
+    if(kind!=='yt'){ setRate(rate+dir*0.05); return; }
+    const L=ytRates(), next = dir>0 ? L.find(x=>x>rate+1e-3) : L.slice().reverse().find(x=>x<rate-1e-3);
+    if(next!=null) setRate(next);
   }
   function stepCount(dir, half){
-    if(!dur) return; vid.pause();
-    const step=half?PER/2:PER, x=(vid.currentTime-st.t0)/step, n=Math.round(x);
+    if(!dur) return; pause();
+    const step=half?PER/2:PER, x=(T()-st.t0)/step, n=Math.round(x);
     let k = Math.abs(x-n)<0.15 ? n+dir : (dir>0?Math.ceil(x):Math.floor(x));
     userSeek(st.t0+k*step+0.02);
   }
   function stepSec(dir){
     if(!dur) return;
-    const i=secIndexAt(vid.currentTime), j=Math.min(nSec()-1,Math.max(0,i+dir));
+    const i=secIndexAt(T()), j=Math.min(nSec()-1,Math.max(0,i+dir));
     if(loopOn) setLoop(j,j);
     seek(Math.max(0,secStart(j)-PER*0.15));
   }
@@ -403,7 +448,7 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
   $('bpm').addEventListener('keydown',e=>{ if(e.key==='Enter') e.target.blur(); });
   $('halfBpm').onclick=()=>setBpm(st.bpm/2, 'Half-time: one count every two beats. Check that count 1 still lands on the right move.');
   $('dblBpm').onclick=()=>setBpm(st.bpm*2, 'Double-time: one count per beat.');
-  $('set1').onclick=()=>{ if(!dur) return; vid.pause(); setT0(vid.currentTime); tmsg('Count 1 set at '+fmt(st.t0,2)+'. Nudge it if the counts drift.'); };
+  $('set1').onclick=()=>{ if(!dur) return; const t=T(); pause(); setT0(t); tmsg('Count 1 set at '+fmt(st.t0,2)+'. Nudge it if the counts drift.'); };
   document.querySelectorAll('[data-nudge]').forEach(b=>b.onclick=()=>{
     if(!dur) return; const v=b.dataset.nudge;
     setT0(st.t0 + (v==='beat'?PER:v==='-beat'?-PER:+v));
@@ -411,14 +456,14 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
   // tap tempo: measures in video time, so it works at any speed
   let taps=[];
   function tap(){
-    const now = (!vid.paused && vid.src) ? vid.currentTime : performance.now()/1000;
-    const real = !( !vid.paused && vid.src);
+    const playing = hasSrc() && !isPaused();
+    const now = playing ? T() : performance.now()/1000, real = !playing;   // paused: plain tapping in real time
     if(taps.length && (Math.abs(now-taps[taps.length-1].t)>2.5 || taps[taps.length-1].real!==real)) taps=[];
     taps.push({t:now,real}); if(taps.length>9) taps.shift();
     if(taps.length<3){ tmsg('Keep tapping on each count…'); return; }
     const d=(taps[taps.length-1].t-taps[0].t)/(taps.length-1);
     if(d<=0) return;
-    let b = 60/d; if(real && vid.src) b *= 1;    // paused: plain tapping
+    const b = 60/d;
     setBpm(b, 'Tapped about '+b.toFixed(1)+' BPM ('+taps.length+' taps).');
   }
   $('tapBtn').onclick=tap;
@@ -468,7 +513,7 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
   function secTitle(i){ if(preset && DATA[i]) return DATA[i].name; const n=st.notes[i]; return n&&n.title ? n.title : ''; }
   function render(){
     if(!dur) return;
-    const t=vid.currentTime||0;
+    const t=T();
     head.style.left=(t/dur*100)+'%';
     tl.setAttribute('aria-valuenow', t.toFixed(1)); tl.setAttribute('aria-valuetext', fmt(t));
     $('tNow').textContent=fmt(t);
@@ -484,19 +529,19 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
     let row=null;
     if(si>=0 && !c.intro) row=document.querySelector(`.row[data-sec="${si}"][data-c="${c.count-1}"]`);
     if(row!==curRow){ curRow&&curRow.classList.remove('cur'); row&&row.classList.add('cur'); curRow=row; }
-    if(!vid.paused && clickOn && lastHalf!==null && c.half!==lastHalf && !(c.half&1) && !(c.intro&&c.label==='–')) click(!c.intro && c.count===1);
+    if(!isPaused() && clickOn && lastHalf!==null && c.half!==lastHalf && !(c.half&1) && !(c.intro&&c.label==='–')) click(!c.intro && c.count===1);
     lastHalf=c.half;
   }
   function tick(){
-    if(dur && !vid.paused && loopOn){ const [a,b]=loopTimes(); if(vid.currentTime>=b){ vid.currentTime=a; lastHalf=null; } }
+    if(dur && hasSrc() && !isPaused() && loopOn){ const [a,b]=loopTimes(); if(T()>=b){ rawSeek(a); lastHalf=null; } }
     render(); requestAnimationFrame(tick);
   }
 
   // ---------- scrubbing
   function tFromEvent(e){ const r=tl.getBoundingClientRect(); return Math.min(1,Math.max(0,(e.clientX-r.left)/r.width))*dur; }
-  tl.addEventListener('pointerdown',e=>{ if(!vid.src) return; dragging=true; tl.setPointerCapture(e.pointerId); userSeek(tFromEvent(e)); });
+  tl.addEventListener('pointerdown',e=>{ if(!hasSrc()) return; dragging=true; tl.setPointerCapture(e.pointerId); userSeek(tFromEvent(e)); });
   tl.addEventListener('pointermove',e=>{ if(dragging) userSeek(tFromEvent(e)); });
-  tl.addEventListener('pointerup',()=>{ dragging=false; });
+  tl.addEventListener('pointerup',e=>{ if(!dragging) return; dragging=false; if(kind==='yt') seek(tFromEvent(e)); });   // final exact seek
   tl.addEventListener('keydown',e=>{ if(e.key==='ArrowLeft'||e.key==='ArrowRight'){ e.preventDefault(); e.stopPropagation(); stepCount(e.key==='ArrowRight'?1:-1, e.shiftKey); } });
 
   // ---------- controls
@@ -509,7 +554,7 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
   document.querySelectorAll('[data-rate]').forEach(b=>b.onclick=()=>setRate(+b.dataset.rate));
   $('loopBtn').onclick=()=>{
     loopOn=!loopOn; $('loopBtn').setAttribute('aria-pressed',String(loopOn));
-    if(loopOn){ const i=Math.max(0,secIndexAt(vid.currentTime)); setLoop(i,i); }
+    if(loopOn){ const i=Math.max(0,secIndexAt(T())); setLoop(i,i); }
     drawBand(); savePrefs();
   };
   $('mirrorBtn').onclick=()=>{ const on=stage.classList.toggle('mirror'); $('mirrorBtn').setAttribute('aria-pressed',String(on)); $('bMirror').textContent=on?'Mirrored':'Original'; savePrefs(); };
@@ -518,11 +563,11 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
   $('theaterBtn').onclick=()=>{ setTheater($('theaterBtn').getAttribute('aria-pressed')!=='true'); savePrefs(); };
 
   $('secs').addEventListener('click',e=>{
-    if(!vid.src || e.target.closest('input')) return;
+    if(!hasSrc() || e.target.closest('input')) return;
     const L=e.target.closest('[data-loop]'), C=e.target.closest('[data-chain]'), R=e.target.closest('.row');
     if(L){ loopSection(+L.dataset.loop, 0.5); return; }
     if(C){ const i=+C.dataset.chain; loopOn=true; $('loopBtn').setAttribute('aria-pressed','true'); setLoop(0,i); setRate(0.75); seek(loopTimes()[0]); play(); return; }
-    if(R){ vid.pause(); userSeek(secStart(+R.dataset.sec)+(+R.dataset.c)*PER+0.02); }
+    if(R){ pause(); userSeek(secStart(+R.dataset.sec)+(+R.dataset.c)*PER+0.02); }
   });
   $('secs').addEventListener('input',e=>{
     const t=e.target, i=+t.dataset.sec; if(!t.matches('input')) return;
@@ -538,7 +583,7 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
     if(k===' '){ e.preventDefault(); toggle(); }
     else if(k==='ArrowLeft'||k==='ArrowRight'){ e.preventDefault(); stepCount(k==='ArrowRight'?1:-1, e.shiftKey); }
     else if(k==='ArrowUp'||k==='ArrowDown'){ e.preventDefault(); stepSec(k==='ArrowDown'?1:-1); }
-    else if(k==='['||k===']') setRate((vid.playbackRate||0.5)+(k===']'?0.05:-0.05));
+    else if(k==='['||k===']') stepRate(k===']'?1:-1);
     else if(k==='l'||k==='L') $('loopBtn').click();
     else if(k==='m'||k==='M') $('mirrorBtn').click();
     else if(k==='c'||k==='C') $('clickBtn').click();
@@ -547,20 +592,170 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
     else if(k===','||k==='.') { if(dur) setT0(st.t0+(k==='.'?0.02:-0.02)); }
   });
 
-  vid.addEventListener('play',()=>$('play').textContent='Pause');
-  vid.addEventListener('pause',()=>$('play').textContent='Play');
-  vid.addEventListener('ended',()=>{ $('play').textContent='Replay'; });
+  vid.addEventListener('play',()=>{ if(kind==='file') $('play').textContent='Pause'; });
+  vid.addEventListener('pause',()=>{ if(kind==='file') $('play').textContent='Play'; });
+  vid.addEventListener('ended',()=>{ if(kind==='file') $('play').textContent='Replay'; });
+
+  // ---------- YouTube source (IFrame Player API)
+  // The player only reports its time a few times a second, so ytTime() interpolates between reports
+  // for a smooth count. After a seek, stale reports from before the jump are ignored briefly.
+  // YouTube's audio can't be read by the page, so tempo detection is file-only; Tap works for both.
+  let yt=null, ytReady=false, ytOk=false, ytState=-1, ytHold=false, ytApi=null, ytPending=null, ytAfterReady=null, ytNudge=null;
+  let ytRaw=-1, ytBase=0, ytAt=0, ytOut=0, ytGuardT=null, ytGuardUntil=0, ytRateNow=1;
+  const YT_RATES=[0.25,0.5,0.75,1,1.25,1.5];
+  function parseYT(s){
+    s=(s||'').trim();
+    if(/^[\w-]{11}$/.test(s)) return s;
+    try{
+      const u=new URL(/^[a-z]+:\/\//i.test(s) ? s : 'https://'+s), h=u.hostname.replace(/^(www|m|music)\./,'');
+      let id=null;
+      if(h==='youtu.be') id=u.pathname.slice(1,12);
+      else if(h==='youtube.com'||h==='youtube-nocookie.com'){
+        id=u.searchParams.get('v');
+        if(!id){ const m=u.pathname.match(/^\/(?:shorts|embed|live|v)\/([\w-]{11})/); if(m) id=m[1]; }
+      }
+      return id && /^[\w-]{11}$/.test(id) ? id : null;
+    }catch(e){ return null; }
+  }
+  function loadYTApi(){
+    if(ytApi) return ytApi;
+    ytApi=new Promise((res,rej)=>{
+      if(window.YT && YT.Player) return res();
+      const prev=window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady=()=>{ if(prev) try{ prev(); }catch(e){} res(); };
+      const s=document.createElement('script'); s.src='https://www.youtube.com/iframe_api'; s.async=true;
+      s.onerror=()=>rej(new Error('api')); document.head.appendChild(s);
+      setTimeout(()=>rej(new Error('timeout')),15000);
+    });
+    ytApi.catch(()=>{ ytApi=null; });
+    return ytApi;
+  }
+  function ytRates(){
+    let L=null; try{ L=yt && ytReady && yt.getAvailablePlaybackRates(); }catch(e){}
+    L=(L&&L.length?L:YT_RATES).filter(x=>x>=0.25-1e-6&&x<=1.5+1e-6);
+    return L.length?L:YT_RATES;
+  }
+  function ytSnapRate(r){ return ytRates().reduce((a,b)=>Math.abs(b-r)<Math.abs(a-r)?b:a); }
+  function ytTime(){
+    if(!ytReady) return 0;
+    let raw=0; try{ raw=yt.getCurrentTime()||0; }catch(e){}
+    const now=performance.now();
+    if(ytGuardT!==null && (now>=ytGuardUntil || Math.abs(raw-ytGuardT)<=1)) ytGuardT=null;
+    if(raw!==ytRaw && ytGuardT===null){ ytRaw=raw; ytBase=raw; ytAt=now; }
+    let t=ytBase;
+    if(ytState===1){ t+=(now-ytAt)/1000*ytRateNow; if(t<ytOut && ytOut-t<0.25) t=ytOut; }   // no tiny backward steps
+    ytOut=t;
+    return dur ? Math.min(t,dur) : t;
+  }
+  function ytSeek(t){
+    if(!ytReady) return;
+    const idle = ytState===-1 || ytState===5;           // seeking a cued video starts it, so hold it paused
+    try{ yt.seekTo(t, !dragging); }catch(e){}
+    if(idle) ytHold=true;
+    ytBase=t; ytOut=t; ytAt=performance.now(); ytGuardT=t; ytGuardUntil=ytAt+1500;
+  }
+  function ytPlay(){
+    if(!ytReady) return;
+    ytHold=false; try{ yt.playVideo(); }catch(e){}
+    clearTimeout(ytNudge);
+    ytNudge=setTimeout(()=>{ if(kind==='yt' && (ytState===-1||ytState===5)) tmsg('If it doesn’t start, tap the video once. Phones sometimes need that the first time.'); },1800);
+  }
+  function ytStateChange(e){
+    ytState=e.data;
+    let raw=0; try{ raw=yt.getCurrentTime()||0; }catch(err){}
+    if(ytGuardT===null){ ytRaw=raw; ytBase=raw; }
+    ytAt=performance.now(); ytOut=ytBase;
+    if(kind!=='yt') return;
+    if(ytState===1 && ytHold){ ytHold=false; try{ yt.pauseVideo(); }catch(err){} }
+    $('play').textContent = (ytState===1||ytState===3) ? 'Pause' : ytState===0 ? 'Replay' : 'Play';
+    if(ytState===0 && loopOn && dur){ seek(loopTimes()[0]); play(); }
+    if(ytState===1){ clearTimeout(ytNudge); ytFillTitle(); }
+    // tapping the video focuses the iframe, which would swallow the keyboard shortcuts
+    try{ const f=yt.getIframe(); if(document.activeElement===f){ f.blur(); window.focus(); } }catch(err){}
+  }
+  function ytFillTitle(){
+    if(st.title) return;
+    let t=''; try{ t=(yt.getVideoData()||{}).title||''; }catch(e){}
+    if(t){ st.title=t; $('h1').textContent=t; saveVideo(); }
+  }
+  function ytError(e){
+    if(kind!=='yt') return;
+    const c=e.data;
+    failLoad( c===101||c===150 ? 'This video’s owner doesn’t allow it to play outside YouTube. Download it and choose the file instead.'
+            : c===100 ? 'That video wasn’t found. It may be private or removed.'
+            : c===2 ? 'That doesn’t look like a valid YouTube video.'
+            : 'YouTube couldn’t play this video here. Try again, or download it and choose the file.');
+  }
+  function ytWaitMeta(tok, done){
+    const start=performance.now();
+    (function poll(){
+      if(tok!==loadTok) return;
+      let d=0; try{ d=yt.getDuration()||0; }catch(e){}
+      if(d>0){ ytOk=true; done(d); return; }
+      if(performance.now()-start>15000){ failLoad('YouTube didn’t load this video. Try again, or choose a file instead.'); return; }
+      setTimeout(poll,200);
+    })();
+  }
+  async function ytLoad(id, tok, done){
+    try{ await loadYTApi(); }catch(e){ if(tok===loadTok) failLoad('Couldn’t reach YouTube. Check your connection, or choose a file instead.'); return; }
+    if(tok!==loadTok) return;
+    ytAfterReady=()=>ytWaitMeta(tok,done);
+    if(!yt){
+      const pv={playsinline:1, controls:0, disablekb:1, rel:0, iv_load_policy:3, fs:0};
+      if(/^https?:$/.test(location.protocol)) pv.origin=location.origin;
+      yt=new YT.Player('ytHost',{width:'100%', height:'100%', videoId:id, playerVars:pv, events:{
+        onReady:()=>{ ytReady=true; if(ytPending){ try{ yt.cueVideoById(ytPending); }catch(e){} ytPending=null; } if(kind==='yt') setRate(rate); if(ytAfterReady) ytAfterReady(); },
+        onStateChange:ytStateChange,
+        onError:ytError,
+        onPlaybackRateChange:e=>{ ytRateNow=e.data; if(kind==='yt' && Math.abs(e.data-rate)>1e-3){ rate=e.data; showRate(); } }
+      }});
+    } else if(!ytReady){ ytPending=id; }
+    else { try{ yt.cueVideoById(id); }catch(e){} ytAfterReady(); }
+  }
 
   // ---------- loading a video
+  const DEFAULT_TEXT={h1:$('h1').textContent, sub:$('sub').textContent};
   function prettyName(n){ return (n||'Untitled video').replace(/\.[a-z0-9]+$/i,'').replace(/^YTDown[._]com[_ ]YouTube[_ ]Media[_ ][A-Za-z0-9_-]{11}[_ ]/i,'').replace(/[_]+/g,' ').replace(/\s+/g,' ').trim().slice(0,70); }
-  function useFile(f, remember){
-    curFile=f; preset=isPreset(f); key=(f.name||'video')+'|'+f.size;
-    const saved=loadVideo(key);
-    let needDetect=false;
-    if(saved && saved.bpm){ st={bpm:saved.bpm,t0:saved.t0||0,notes:saved.notes||[]}; }
-    else if(preset){ st={bpm:PRESET.bpm,t0:PRESET.t0,notes:[]}; }
-    else { st={bpm:120,t0:0,notes:[]}; needDetect=true; }
-    $('h1').textContent = preset ? 'Love Is a Drug' : prettyName(f.name);
+  function setErr(m){ $('err').hidden=!m; $('err').textContent=m||''; }
+  let lastCached=null;
+  async function refreshLastFile(){
+    const b=$('lastFileBtn'); b.hidden=true;
+    if(kind==='file') return;
+    const c=await cachedVideo(); lastCached=c;
+    if(c && kind!=='file'){ b.textContent='Reopen “'+prettyName(c.name||(c.blob&&c.blob.name)||'last file').slice(0,32)+'”'; b.hidden=false; }
+  }
+  function openCached(c){ const b=c.blob||c; if(b && !b.name && c.name){ try{ useFile(new File([b],c.name,{type:b.type}),false); return; }catch(e){} } useFile(b,false); }
+  function openPicker(msg){
+    if(hasSrc()) pause();
+    stage.classList.add('picking'); drop.hidden=false;
+    $('cancelPick').hidden=!hasSrc(); setErr(msg); refreshLastFile();
+  }
+  function closePicker(){ stage.classList.remove('picking'); drop.hidden=true; setErr(''); }
+  // stop whichever source we're leaving
+  function stopOther(next){
+    if(next!=='file' && vid.getAttribute('src')){ vid.pause(); vid.removeAttribute('src'); vid.load(); if(objURL){ URL.revokeObjectURL(objURL); objURL=null; } }
+    if(next!=='yt'){ ytOk=false; ytHold=false; if(ytReady) try{ yt.stopVideo(); }catch(e){} }
+  }
+  function startLoad(k){
+    stopOther(k); kind=k; stage.dataset.src=k; dur=0; loopI=loopJ=0;
+    closePicker(); $('hud').hidden=false; $('badge').hidden=false; $('changeBtn').hidden=false;
+    $('count').textContent='–'; $('hudmeta').textContent=''; $('play').textContent='Play';
+    $('detectBtn').hidden = k!=='file';
+    return ++loadTok;
+  }
+  function gotDuration(d){
+    dur=d; tl.setAttribute('aria-valuemax',dur.toFixed(1)); $('tDur').textContent=fmt(dur);
+    loopI=loopJ=0; rebuild(); setRate(rate);
+    if(kind==='file') seek(0);
+  }
+  function failLoad(m){
+    loadTok++; stopOther(null); kind=null; key=null; dur=0; stage.dataset.src='';
+    $('hud').hidden=true; $('badge').hidden=true; $('changeBtn').hidden=true; $('play').textContent='Play';
+    $('h1').textContent=DEFAULT_TEXT.h1; $('sub').textContent=DEFAULT_TEXT.sub;
+    rebuild(); openPicker(m);
+  }
+  function setTexts(title){
+    $('h1').textContent = preset ? 'Love Is a Drug' : title;
     $('sub').textContent = preset
       ? 'Beginner combo, 8 eight-counts plus an ending. Learn each 8-count at half speed on a loop, then run it all at full speed.'
       : 'Set the tempo and where count 1 lands, then learn it 8-count by 8-count and run it at full speed.';
@@ -570,23 +765,61 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
     $('fine').textContent = preset
       ? 'Counts sit on the song’s ~143 BPM pulse, so every count is one move. If your teacher counts in half-time, press “½ time” and one of their 8-counts will cover two of these. Counts were read from the video frame by frame, so use the slow loop to confirm turn directions and small hand details.'
       : 'Counts follow the tempo and count 1 you set. If the counts slowly drift off the music, adjust the tempo by 0.1 at a time; if they’re off by the same amount everywhere, nudge count 1.';
+  }
+  function useFile(f, remember){
+    const tok=startLoad('file');
+    curFile=f; preset=isPreset(f); key=(f.name||'video')+'|'+f.size;
+    const saved=loadVideo(key);
+    let needDetect=false;
+    if(saved && saved.bpm){ st={bpm:saved.bpm,t0:saved.t0||0,notes:saved.notes||[]}; }
+    else if(preset){ st={bpm:PRESET.bpm,t0:PRESET.t0,notes:[]}; }
+    else { st={bpm:120,t0:0,notes:[]}; needDetect=true; }
+    setTexts(prettyName(f.name)); rebuild();
     if(objURL) URL.revokeObjectURL(objURL);
     objURL=URL.createObjectURL(f);
-    dur=0; vid.src=objURL;
-    drop.hidden=true; $('err').hidden=true; $('hud').hidden=false; $('badge').hidden=false; $('changeBtn').hidden=false;
+    vid.src=objURL;
     vid.addEventListener('loadedmetadata',()=>{
-      dur = isFinite(vid.duration)&&vid.duration>0 ? vid.duration : 0;
-      tl.setAttribute('aria-valuemax',dur.toFixed(1)); $('tDur').textContent=fmt(dur);
-      loopI=loopJ=0; rebuild(); setRate(vid.defaultPlaybackRate||0.5); seek(0);
+      if(tok!==loadTok) return;
+      gotDuration(isFinite(vid.duration)&&vid.duration>0 ? vid.duration : 0);
       tmsg(saved ? 'Tempo and count 1 restored from last time.' : preset ? 'Tempo and count 1 are set for this class video. Adjust them any time.' : 'Set the tempo, then pause on the move that starts the routine and press “Set 1 here”.');
       if(needDetect) detect(f);
     },{once:true});
-    vid.onerror=()=>{ drop.hidden=false; $('hud').hidden=true; $('err').hidden=false; $('err').textContent='That file can’t be played in this browser. Try an MP4 or WebM.'; };
+    vid.onerror=()=>{ if(kind==='file' && tok===loadTok) failLoad('That file can’t be played in this browser. Try an MP4 or WebM.'); };
+    setLast({type:'file'});
     if(remember) cacheVideo(f);
   }
-  function handleFile(f){ if(!f) return; if(!/^video\//.test(f.type) && !/\.(mp4|mov|webm|m4v|mkv)$/i.test(f.name)){ $('err').hidden=false; $('err').textContent='Choose a video file (MP4, MOV or WebM).'; return; } useFile(f,true); }
+  function useYouTube(id){
+    const tok=startLoad('yt');
+    curFile=null; preset=false; key='yt:'+id;
+    const saved=loadVideo(key);
+    st = saved && saved.bpm ? {bpm:saved.bpm, t0:saved.t0||0, notes:saved.notes||[], title:saved.title||''} : {bpm:120, t0:0, notes:[], title:''};
+    setTexts(st.title||'YouTube video'); rebuild();
+    tmsg('Loading from YouTube…');
+    setLast({type:'yt', id});
+    ytLoad(id, tok, d=>{
+      gotDuration(d); ytFillTitle();
+      tmsg(saved ? 'Tempo and count 1 restored from last time.' : 'Tap along on each count while it plays (or type the BPM), then pause on the move that starts the routine and press “Set 1 here”.');
+    });
+  }
+  function handleFile(f){ if(!f) return; if(!/^video\//.test(f.type) && !/\.(mp4|mov|webm|m4v|mkv)$/i.test(f.name)){ openPicker('Choose a video file (MP4, MOV or WebM).'); return; } useFile(f,true); }
+  function submitYT(s){
+    const id=parseYT(s);
+    if(!id){ setErr(/[?&]list=/.test(s||'') ? 'That’s a playlist link. Open one video from it and copy that video’s link.' : 'Paste a YouTube video link, like youtube.com/watch?v=… or youtu.be/…'); return false; }
+    $('ytUrl').value=''; $('ytUrl').blur(); useYouTube(id); return true;
+  }
+  $('ytForm').addEventListener('submit',e=>{ e.preventDefault(); submitYT($('ytUrl').value); });
+  $('ytUrl').addEventListener('paste',()=>setTimeout(()=>{ if(parseYT($('ytUrl').value)) submitYT($('ytUrl').value); },0));
+  if(navigator.clipboard && navigator.clipboard.readText){
+    $('pasteBtn').hidden=false;
+    $('pasteBtn').onclick=async()=>{
+      let s=''; try{ s=await navigator.clipboard.readText(); }catch(e){ setErr('Couldn’t read the clipboard. Paste the link into the box instead.'); return; }
+      if(!submitYT(s)) $('ytUrl').value=(s||'').slice(0,300);
+    };
+  }
   $('pickBtn').onclick=()=>$('file').click();
-  $('changeBtn').onclick=()=>$('file').click();
+  $('lastFileBtn').onclick=()=>{ if(lastCached) openCached(lastCached); };
+  $('changeBtn').onclick=()=>openPicker();
+  $('cancelPick').onclick=closePicker;
   $('file').onchange=e=>{ handleFile(e.target.files[0]); e.target.value=''; };
   ['dragenter','dragover'].forEach(ev=>stage.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
   ['dragleave','drop'].forEach(ev=>stage.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
@@ -599,8 +832,12 @@ header.title p{margin:6px 0 0;color:var(--muted);max-width:60ch}
          clickOn=!!p.click; $('clickBtn').setAttribute('aria-pressed',String(clickOn));
          setTheater(!!p.theater); }
   setRate(p&&p.rate?p.rate:0.5);
-  updateTiming(); buildNotes();
-  cachedVideo().then(c=>{ if(!c) return; const b=c.blob||c; if(b && !b.name && c.name){ try{ useFile(new File([b],c.name,{type:b.type}),false); return; }catch(e){} } useFile(b,false); });
+  updateTiming(); buildNotes(); refreshLastFile();
+  // ?v=<id or link> opens a YouTube video directly; otherwise reopen whatever was used last
+  const qv=parseYT(new URLSearchParams(location.search).get('v')||''), last=getLast();
+  if(qv) useYouTube(qv);
+  else if(last && last.type==='yt' && parseYT(last.id)) useYouTube(last.id);
+  else cachedVideo().then(c=>{ if(c && !kind) openCached(c); });
   requestAnimationFrame(tick);
 })();
 </script>
