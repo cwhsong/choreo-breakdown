@@ -13,6 +13,8 @@ https://cwhsong.github.io/choreo-breakdown/
 - Tempo detection from the song's audio (files only), plus manual BPM, ½ time / ×2 and tap tempo.
 - Set count 1 anywhere, then nudge it by a beat or by 0.02s.
 - Loop a single 8-count, or chain 8-counts together.
+- A–B loops for drilling any stretch: tap A and B (or type times like `0:05` and `0:13`), optionally snapped to the nearest count. Save loops with names; each remembers its speed.
+- Library of your YouTube pieces, each with its tempo, count 1, notes, saved loops and where you left off.
 - Speed from 25% to 150% in 5% steps (YouTube videos use the speeds YouTube offers, usually 25% steps).
 - Mirror view, count clicks, and a big on-screen count.
 - Per-count notes for each 8-count, saved in your browser per video. The last video (YouTube or file) reopens automatically.
@@ -26,6 +28,7 @@ https://cwhsong.github.io/choreo-breakdown/
 | ↑ ↓ | Previous / next 8-count |
 | [ ] | Speed −5% / +5% (next YouTube speed on YouTube) |
 | L | Loop on/off |
+| A / B | Set loop start / end at the current moment |
 | M | Mirror on/off |
 | C | Count clicks on/off |
 | T | Tap tempo |
